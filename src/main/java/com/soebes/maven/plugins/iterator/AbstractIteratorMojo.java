@@ -24,7 +24,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.comparator.NameFileComparator;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 import org.apache.commons.io.filefilter.FileFilterUtils;
@@ -158,6 +160,30 @@ public abstract class AbstractIteratorMojo
     @Parameter( defaultValue = "NAME_COMPARATOR" )
     private String sortOrder;
 
+    /**
+     * This defines if the folder search is recursive
+     */
+    @Parameter ( defaultValue = "false" )
+    private boolean recursive;
+
+    /**
+     * This defines if the folder search should include files
+     */
+    @Parameter ( defaultValue = "false" )
+    private boolean includeFiles;
+
+    /**
+     * This defines if it should return the full path of the folder / files
+     */
+    @Parameter ( defaultValue = "false" )
+    private boolean fullPath;
+
+    /**
+     * If specified, only includes files of the given extension
+     */
+    @Parameter
+    private List<String> validExtensions;
+
     public boolean isSortOrderValid( String sortOrder )
     {
         boolean result = sortOrder.equalsIgnoreCase( "NAME_COMPARATOR" )
@@ -210,16 +236,38 @@ public abstract class AbstractIteratorMojo
         List<File> listOfDirectories = new ArrayList<File>();
         for ( String item : list )
         {
-            listOfDirectories.add( new File( folder, item ) );
+            listOfDirectories.addAll( getFolderContent(new File( folder, item ) ) );
+        }
+
+        if(getValidExtensions().size() > 0) {
+            listOfDirectories = listOfDirectories.stream().filter(
+                f -> f.isFile() && getValidExtensions().contains(FilenameUtils.getExtension(f.getName()))).collect(Collectors.toList());
         }
 
         Collections.sort( listOfDirectories, convertSortOrder() );
         List<String> resultList = new ArrayList<String>();
         for ( File file : listOfDirectories )
         {
-            resultList.add( file.getName() );
+            if(isFullPath()) {
+                resultList.add(file.getAbsolutePath());
+            } else {
+                resultList.add(file.getName());
+            }
         }
         return resultList;
+    }
+
+    private List<File> getFolderContent(File folder) {
+        List<File> res = new ArrayList<>();
+        if(isIncludeFiles() || folder.isDirectory()) {
+            res.add(folder);
+        }
+        if(isRecursive() && folder.isDirectory()) {
+            for(File subFile: folder.listFiles()) {
+                res.addAll(getFolderContent(subFile));
+            }
+        }
+        return res;
     }
 
     private List<String> getContentAsList()
@@ -458,4 +506,38 @@ public abstract class AbstractIteratorMojo
         this.mavenSession = mavenSession;
     }
 
+    public boolean isRecursive() {
+        return recursive;
+    }
+
+    public void setRecursive(boolean recursive) {
+        this.recursive = recursive;
+    }
+
+    public boolean isIncludeFiles() {
+        return includeFiles;
+    }
+
+    public void setIncludeFiles(boolean includeFiles) {
+        this.includeFiles = includeFiles;
+    }
+
+    public List<String> getValidExtensions() {
+        if(validExtensions == null) {
+            return new ArrayList<>();
+        }
+        return validExtensions;
+    }
+
+    public void setValidExtensions(List<String> validExtensions) {
+        this.validExtensions = validExtensions;
+    }
+
+    public boolean isFullPath() {
+        return fullPath;
+    }
+
+    public void setFullPath(boolean fullPath) {
+        this.fullPath = fullPath;
+    }
 }
